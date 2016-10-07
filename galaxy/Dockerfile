@@ -14,7 +14,8 @@ MAINTAINER Björn A. Grüning, bjoern.gruening@gmail.com
 ENV GALAXY_RELEASE=release_16.07 \
 GALAXY_REPO=https://github.com/galaxyproject/galaxy \
 GALAXY_ROOT=/galaxy-central \
-GALAXY_CONFIG_DIR=/etc/galaxy
+GALAXY_CONFIG_DIR=/etc/galaxy \
+TERM=xterm
 
 ENV GALAXY_CONFIG_FILE=$GALAXY_CONFIG_DIR/galaxy.ini \
 GALAXY_CONFIG_JOB_CONFIG_FILE=$GALAXY_CONFIG_DIR/job_conf.xml \
@@ -55,12 +56,11 @@ RUN groupadd -r postgres -g $GALAXY_POSTGRES_GID && \
 
 RUN apt-get -qq update && apt-get install --no-install-recommends -y apt-transport-https software-properties-common wget && \
     apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D && \
-    sh -c "echo deb https://get.docker.io/ubuntu docker main > /etc/apt/sources.list.d/docker.list" && \
     apt-add-repository -y ppa:ansible/ansible && \
     apt-add-repository -y ppa:galaxyproject/nginx && \
     apt-get update -qq && apt-get upgrade -y && \
     apt-get install --no-install-recommends -y mercurial python-psycopg2 postgresql-9.3 sudo samtools python-virtualenv \
-    nginx-extras=1.4.6-1ubuntu3.4ppa1 nginx-common=1.4.6-1ubuntu3.4ppa1 uwsgi uwsgi-plugin-python supervisor lxc-docker-1.9.1 libswitch-perl \
+    nginx-extras=1.4.6-1ubuntu3.4ppa1 nginx-common=1.4.6-1ubuntu3.4ppa1 uwsgi uwsgi-plugin-python supervisor libswitch-perl \
     proftpd proftpd-mod-pgsql libyaml-dev nodejs-legacy npm ansible munge libmunge-dev\
     nano nmap lynx vim curl python-crypto python-pip python-gnuplot python-rpy2 python-psutil python-ldap \
     gridengine-common gridengine-drmaa1.0 && \
@@ -69,11 +69,17 @@ RUN apt-get -qq update && apt-get install --no-install-recommends -y apt-transpo
     apt-get purge -y software-properties-common && \
     apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+# Get a specific docker version
+RUN wget -q https://get.docker.com/builds/Linux/x86_64/docker-1.8.2.tgz && \
+    tar xf docker-1.8.2.tgz && \
+    mv usr/local/bin/docker /usr/bin/docker
+
 RUN groupadd -r $GALAXY_USER -g $GALAXY_GID && \
     useradd -u $GALAXY_UID -r -g $GALAXY_USER -d $GALAXY_HOME -c "Galaxy user" $GALAXY_USER && \
+    useradd docker && \
     mkdir $EXPORT_DIR $GALAXY_HOME $GALAXY_LOGS_DIR && chown -R $GALAXY_USER:$GALAXY_USER $GALAXY_HOME $EXPORT_DIR $GALAXY_LOGS_DIR && \
-    gpasswd -a $GALAXY_USER docker && \
-    adduser --ingroup docker docker
+    gpasswd -a $GALAXY_USER docker
+
 ADD ./bashrc $GALAXY_HOME/.bashrc
 
 # Install the proper version of slurm
@@ -90,7 +96,8 @@ RUN wget -q www.schedmd.com/download/archive/slurm-15.08.4.tar.bz2 && \
     ./configure --with-slurm-inc=/usr/local/include --with-slurm-lib=/usr/local/lib --sysconfdir=/etc && \
     ls -l && \
     make && \
-    make install
+    make install && \
+    ln -s /usr/local /usr/lib/slurm-drmaa
 
 # Download latest stable release of Galaxy.
 RUN mkdir $GALAXY_ROOT && \
@@ -230,6 +237,9 @@ RUN sed '2 i /usr/bin/addGroups.py' /usr/bin/startup > /usr/bin/startup2 && \
     chmod a+x /usr/bin/startup2 && \
     useradd slurm && \
     mkdir /etc/slurm-llnl
+
+# You can't use --net=host AND already be running sshd on the host server, since proftpd will try to bind port 22
+RUN sed -i '68,$ d' /etc/proftpd/proftpd.conf
 
 # Expose port 80 (webserver), 21 (FTP server), 8800 (Proxy), 9002 (supvisord web app)
 EXPOSE :80
