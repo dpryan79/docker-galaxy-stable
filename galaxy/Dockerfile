@@ -20,7 +20,7 @@ ENV GALAXY_CONFIG_FILE=$GALAXY_CONFIG_DIR/galaxy.ini \
 GALAXY_CONFIG_JOB_CONFIG_FILE=$GALAXY_CONFIG_DIR/job_conf.xml \
 GALAXY_CONFIG_JOB_METRICS_CONFIG_FILE=$GALAXY_CONFIG_DIR/job_metrics_conf.xml \
 GALAXY_CONFIG_TOOL_DEPENDENCY_DIR=/tool_deps \
-GALAXY_VIRTUAL_ENV=/galaxy_venv \
+GALAXY_VIRTUAL_ENV=/$GALAXY_CONFIG_TOOL_DEPENDENCY_DIR/galaxy_venv \
 GALAXY_USER=galaxy \
 GALAXY_UID=1450 \
 GALAXY_GID=1450 \
@@ -53,6 +53,22 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 RUN groupadd -r postgres -g $GALAXY_POSTGRES_GID && \
     adduser --system --quiet --home /var/lib/postgresql --no-create-home --shell /bin/bash --gecos "" --uid $GALAXY_POSTGRES_UID --gid $GALAXY_POSTGRES_GID postgres
 
+RUN apt-get -qq update && apt-get install --no-install-recommends -y apt-transport-https software-properties-common wget && \
+    apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D && \
+    sh -c "echo deb https://get.docker.io/ubuntu docker main > /etc/apt/sources.list.d/docker.list" && \
+    apt-add-repository -y ppa:ansible/ansible && \
+    apt-add-repository -y ppa:galaxyproject/nginx && \
+    apt-get update -qq && apt-get upgrade -y && \
+    apt-get install --no-install-recommends -y mercurial python-psycopg2 postgresql-9.3 sudo samtools python-virtualenv \
+    nginx-extras=1.4.6-1ubuntu3.4ppa1 nginx-common=1.4.6-1ubuntu3.4ppa1 uwsgi uwsgi-plugin-python supervisor lxc-docker-1.9.1 libswitch-perl \
+    proftpd proftpd-mod-pgsql libyaml-dev nodejs-legacy npm ansible \
+    nano nmap lynx vim curl python-crypto python-pip python-gnuplot python-rpy2 python-psutil python-ldap \
+    gridengine-common gridengine-drmaa1.0 && \
+    pip install --upgrade pip && \
+    pip install ephemeris && \
+    apt-get purge -y software-properties-common && \
+    apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 # Install the proper version of slurm
 RUN wget www.schedmd.com/download/archive/slurm-15.08.4.tar.bz2 && \
     tar xf slurm-15.08.4.tar.bz2 && \
@@ -67,22 +83,6 @@ RUN wget www.schedmd.com/download/archive/slurm-15.08.4.tar.bz2 && \
     ./configure --with-slurm-inc=/usr/local/include --with-slurm-lib=/usr/local/lib --sysconfdir=/etc --no-create --no-recursion && \
     make && \
     make install 
-
-RUN apt-get -qq update && apt-get install --no-install-recommends -y apt-transport-https software-properties-common wget && \
-    apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D && \
-    sh -c "echo deb https://get.docker.io/ubuntu docker main > /etc/apt/sources.list.d/docker.list" && \
-    apt-add-repository -y ppa:ansible/ansible && \
-    apt-add-repository -y ppa:galaxyproject/nginx && \
-    apt-get update -qq && apt-get upgrade -y && \
-    apt-get install --no-install-recommends -y mercurial python-psycopg2 postgresql-9.3 sudo samtools python-virtualenv \
-    nginx-extras=1.4.6-1ubuntu3.4ppa1 nginx-common=1.4.6-1ubuntu3.4ppa1 uwsgi uwsgi-plugin-python supervisor lxc-docker-1.9.1 libswitch-perl \
-    proftpd proftpd-mod-pgsql libyaml-dev nodejs-legacy npm ansible \
-    nano nmap lynx vim curl python-crypto python-pip python-gnuplot python-rpy2 python-psutil condor python-ldap \
-    gridengine-common gridengine-drmaa1.0 && \
-    pip install --upgrade pip && \
-    pip install ephemeris && \
-    apt-get purge -y software-properties-common && \
-    apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 RUN groupadd -r $GALAXY_USER -g $GALAXY_GID && \
     useradd -u $GALAXY_UID -r -g $GALAXY_USER -d $GALAXY_HOME -c "Galaxy user" $GALAXY_USER && \
@@ -118,8 +118,8 @@ RUN ansible-playbook /tmp/ansible/postgresql_provision.yml && \
     --extra-vars galaxy_job_conf_path=$GALAXY_CONFIG_JOB_CONFIG_FILE \
     --extra-vars galaxy_job_metrics_conf_path=$GALAXY_CONFIG_JOB_METRICS_CONFIG_FILE \
     --extra-vars supervisor_manage_slurm="" \
-    --extra-vars galaxy_extras_config_condor=True \
-    --extra-vars galaxy_extras_config_condor_docker=True \
+    --extra-vars galaxy_extras_config_condor=False \
+    --extra-vars galaxy_extras_config_condor_docker=False \
     --extra-vars proftpd_db_connection=galaxy@galaxy \
     --extra-vars proftpd_files_dir=/export/ftp \
     --extra-vars proftpd_use_sftp=True \
@@ -216,8 +216,8 @@ ADD install_tools_wrapper.sh /usr/bin/install-tools
 ADD install_biojs_vis.sh /usr/bin/install-biojs
 RUN chmod +x /usr/bin/install-tools /usr/bin/startup /usr/bin/startup_lite /usr/bin/install-biojs /usr/bin/add-tool-shed
 
-RUN echo "DISCARD_SESSION_KEYRING_ON_STARTUP=False" > /etc/condor/condor_config.local && \
-    echo "TRUST_UID_DOMAIN=true" >> /etc/condor/condor_config.local
+#RUN echo "DISCARD_SESSION_KEYRING_ON_STARTUP=False" > /etc/condor/condor_config.local && \
+#    echo "TRUST_UID_DOMAIN=true" >> /etc/condor/condor_config.local
 
 # This needs to happen here and not above, otherwise the Galaxy start
 # (without running the startup.sh script) will crash because integrated_tool_panel.xml could not be found.
