@@ -20,7 +20,7 @@ ENV GALAXY_CONFIG_FILE=$GALAXY_CONFIG_DIR/galaxy.ini \
 GALAXY_CONFIG_JOB_CONFIG_FILE=$GALAXY_CONFIG_DIR/job_conf.xml \
 GALAXY_CONFIG_JOB_METRICS_CONFIG_FILE=$GALAXY_CONFIG_DIR/job_metrics_conf.xml \
 GALAXY_CONFIG_TOOL_DEPENDENCY_DIR=/tool_deps \
-GALAXY_VIRTUAL_ENV=/$GALAXY_CONFIG_TOOL_DEPENDENCY_DIR/galaxy_venv \
+GALAXY_VIRTUAL_ENV=/tool_deps/galaxy_venv \
 GALAXY_USER=galaxy \
 GALAXY_UID=1450 \
 GALAXY_GID=1450 \
@@ -69,27 +69,29 @@ RUN apt-get -qq update && apt-get install --no-install-recommends -y apt-transpo
     apt-get purge -y software-properties-common && \
     apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+RUN groupadd -r $GALAXY_USER -g $GALAXY_GID && \
+    useradd -u $GALAXY_UID -r -g $GALAXY_USER -d $GALAXY_HOME -c "Galaxy user" $GALAXY_USER && \
+    mkdir $EXPORT_DIR $GALAXY_HOME $GALAXY_LOGS_DIR && chown -R $GALAXY_USER:$GALAXY_USER $GALAXY_HOME $EXPORT_DIR $GALAXY_LOGS_DIR && \
+    gpasswd -a $GALAXY_USER docker && \
+    adduser --ingroup docker docker
+ADD ./bashrc $GALAXY_HOME/.bashrc
+
 # Install the proper version of slurm
-RUN wget www.schedmd.com/download/archive/slurm-15.08.4.tar.bz2 && \
+RUN wget -q www.schedmd.com/download/archive/slurm-15.08.4.tar.bz2 && \
     tar xf slurm-15.08.4.tar.bz2 && \
     cd slurm-15.08.4 && \
     ./configure --prefix=/usr/local --sysconfdir=/etc/slurm-llnl && \
     make && \
     make install && \
     cd .. && \
-    wget http://apps.man.poznan.pl/trac/slurm-drmaa/downloads/9 && \
+    wget -q http://apps.man.poznan.pl/trac/slurm-drmaa/downloads/9 && \
     tar xf 9 && \
     cd slurm-drmaa-1.0.7 && \
-    ./configure --with-slurm-inc=/usr/local/include --with-slurm-lib=/usr/local/lib --sysconfdir=/etc --no-create --no-recursion && \
+    ./configure --with-slurm-inc=/usr/local/include --with-slurm-lib=/usr/local/lib --sysconfdir=/etc && \
+    ls -l && \
     make && \
-    make install 
-
-RUN groupadd -r $GALAXY_USER -g $GALAXY_GID && \
-    useradd -u $GALAXY_UID -r -g $GALAXY_USER -d $GALAXY_HOME -c "Galaxy user" $GALAXY_USER && \
-    mkdir $EXPORT_DIR $GALAXY_HOME $GALAXY_LOGS_DIR && chown -R $GALAXY_USER:$GALAXY_USER $GALAXY_HOME $EXPORT_DIR $GALAXY_LOGS_DIR && \
-    gpasswd -a $GALAXY_USER docker && \
-    adduser docker
-ADD ./bashrc $GALAXY_HOME/.bashrc
+    make install && \
+    apt-get -qq update && apt-get install -q -y munge
 
 # Download latest stable release of Galaxy.
 RUN mkdir $GALAXY_ROOT && \
@@ -130,7 +132,7 @@ RUN ansible-playbook /tmp/ansible/postgresql_provision.yml && \
 
 RUN mkdir /shed_tools && chown $GALAXY_USER:$GALAXY_USER /shed_tools && \
     mkdir /export/ftp/ && chown $GALAXY_USER:$GALAXY_USER /export/ftp && \
-    mkdir /tool_deps/ && chown $GALAXY_USER:$GALAXY_USER /tool_deps # Configure Galaxy to use the Tool Shed
+    chown $GALAXY_USER:$GALAXY_USER /tool_deps # Configure Galaxy to use the Tool Shed
 
 # The following commands will be executed as User galaxy
 USER galaxy
