@@ -78,7 +78,7 @@ RUN wget www.schedmd.com/download/archive/slurm-15.08.4.tar.bz2 && \
     make install && \
     cd .. && \
     wget http://apps.man.poznan.pl/trac/slurm-drmaa/downloads/9 && \
-    tar xf slurm-drmaa-1.0.7 && \
+    tar xf 9 && \
     cd slurm-drmaa-1.0.7 && \
     ./configure --with-slurm-inc=/usr/local/include --with-slurm-lib=/usr/local/lib --sysconfdir=/etc --no-create --no-recursion && \
     make && \
