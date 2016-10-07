@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os.path
-from subprocess
+import subprocess
 
 if os.path.exists("/export/groups.tsv"):
     f = open("/export/groups.tsv", "r")  # This has two columns: group, GID

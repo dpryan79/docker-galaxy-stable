@@ -23,7 +23,7 @@ GALAXY_CONFIG_TOOL_DEPENDENCY_DIR=/tool_deps \
 GALAXY_VIRTUAL_ENV=/tool_deps/galaxy_venv \
 GALAXY_USER=galaxy \
 GALAXY_UID=1450 \
-GALAXY_GID=1450 \
+GALAXY_GID=532 \
 GALAXY_POSTGRES_UID=1550 \
 GALAXY_POSTGRES_GID=1550 \
 GALAXY_HOME=/home/galaxy \
@@ -61,7 +61,7 @@ RUN apt-get -qq update && apt-get install --no-install-recommends -y apt-transpo
     apt-get update -qq && apt-get upgrade -y && \
     apt-get install --no-install-recommends -y mercurial python-psycopg2 postgresql-9.3 sudo samtools python-virtualenv \
     nginx-extras=1.4.6-1ubuntu3.4ppa1 nginx-common=1.4.6-1ubuntu3.4ppa1 uwsgi uwsgi-plugin-python supervisor lxc-docker-1.9.1 libswitch-perl \
-    proftpd proftpd-mod-pgsql libyaml-dev nodejs-legacy npm ansible \
+    proftpd proftpd-mod-pgsql libyaml-dev nodejs-legacy npm ansible munge libmunge-dev\
     nano nmap lynx vim curl python-crypto python-pip python-gnuplot python-rpy2 python-psutil python-ldap \
     gridengine-common gridengine-drmaa1.0 && \
     pip install --upgrade pip && \
@@ -80,7 +80,7 @@ ADD ./bashrc $GALAXY_HOME/.bashrc
 RUN wget -q www.schedmd.com/download/archive/slurm-15.08.4.tar.bz2 && \
     tar xf slurm-15.08.4.tar.bz2 && \
     cd slurm-15.08.4 && \
-    ./configure --prefix=/usr/local --sysconfdir=/etc/slurm-llnl && \
+    ./configure --prefix=/usr/local --sysconfdir=/etc/slurm-llnl --with-munge=/usr && \
     make && \
     make install && \
     cd .. && \
@@ -90,8 +90,7 @@ RUN wget -q www.schedmd.com/download/archive/slurm-15.08.4.tar.bz2 && \
     ./configure --with-slurm-inc=/usr/local/include --with-slurm-lib=/usr/local/lib --sysconfdir=/etc && \
     ls -l && \
     make && \
-    make install && \
-    apt-get -qq update && apt-get install -q -y munge
+    make install
 
 # Download latest stable release of Galaxy.
 RUN mkdir $GALAXY_ROOT && \
@@ -227,9 +226,10 @@ ENV GALAXY_CONFIG_INTEGRATED_TOOL_PANEL_CONFIG /export/galaxy-central/integrated
 
 # Handle groups
 ADD ./addGroups.py /usr/bin/addGroups.py
-RUN echo "/usr/bin/addGroups.py" > /tmp/foo && \
-    cat /tmp/foo /usr/bin/startup > /usr/bin/startup2 && \
-    chmod a+x /usr/bin/startup2
+RUN sed '2 i /usr/bin/addGroups.py' /usr/bin/startup > /usr/bin/startup2 && \
+    chmod a+x /usr/bin/startup2 && \
+    useradd slurm && \
+    mkdir /etc/slurm-llnl
 
 # Expose port 80 (webserver), 21 (FTP server), 8800 (Proxy), 9002 (supvisord web app)
 EXPOSE :80
