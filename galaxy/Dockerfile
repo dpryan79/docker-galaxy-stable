@@ -20,8 +20,8 @@ TERM=xterm
 ENV GALAXY_CONFIG_FILE=$GALAXY_CONFIG_DIR/galaxy.ini \
 GALAXY_CONFIG_JOB_CONFIG_FILE=$GALAXY_CONFIG_DIR/job_conf.xml \
 GALAXY_CONFIG_JOB_METRICS_CONFIG_FILE=$GALAXY_CONFIG_DIR/job_metrics_conf.xml \
-GALAXY_CONFIG_TOOL_DEPENDENCY_DIR=/tool_deps \
-GALAXY_VIRTUAL_ENV=/tool_deps/galaxy_venv \
+GALAXY_CONFIG_TOOL_DEPENDENCY_DIR=/data/galaxy/tool_deps \
+GALAXY_VIRTUAL_ENV=/data/galaxy/tool_deps/galaxy_venv \
 GALAXY_USER=galaxy \
 GALAXY_UID=1450 \
 GALAXY_GID=532 \
@@ -97,7 +97,8 @@ RUN wget -q www.schedmd.com/download/archive/slurm-15.08.4.tar.bz2 && \
     ls -l && \
     make && \
     make install && \
-    ln -s /usr/local /usr/lib/slurm-drmaa
+    ln -s /usr/local /usr/lib/slurm-drmaa && \
+    rm -rf /9 /docker-1.8.2.tgz /slurm*
 
 # Download latest stable release of Galaxy.
 RUN mkdir $GALAXY_ROOT && \
@@ -138,7 +139,7 @@ RUN ansible-playbook /tmp/ansible/postgresql_provision.yml && \
 
 RUN mkdir /shed_tools && chown $GALAXY_USER:$GALAXY_USER /shed_tools && \
     mkdir /export/ftp/ && chown $GALAXY_USER:$GALAXY_USER /export/ftp && \
-    chown $GALAXY_USER:$GALAXY_USER /tool_deps # Configure Galaxy to use the Tool Shed
+    chown $GALAXY_USER:$GALAXY_USER /data/galaxy/tool_deps # Configure Galaxy to use the Tool Shed
 
 # The following commands will be executed as User galaxy
 USER galaxy
