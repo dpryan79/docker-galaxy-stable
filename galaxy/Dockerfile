@@ -71,7 +71,7 @@ RUN apt-get -qq update && apt-get install --no-install-recommends -y apt-transpo
     nginx-extras=1.4.6-1ubuntu3.4ppa1 nginx-common=1.4.6-1ubuntu3.4ppa1 uwsgi uwsgi-plugin-python supervisor libswitch-perl \
     proftpd proftpd-mod-pgsql libyaml-dev nodejs-legacy npm ansible munge libmunge-dev \
     nano nmap lynx vim curl python-crypto python-pip python-gnuplot python-rpy2 python-psutil python-ldap \
-    gridengine-common gridengine-drmaa1.0 rabbitmq-server && \
+    gridengine-common gridengine-drmaa1.0 rabbitmq-server nfs-kernel-server autofs nis psmisc && \
     pip install --upgrade pip && \
     pip install ephemeris && \
     apt-get purge -y software-properties-common && \
@@ -244,6 +244,10 @@ RUN sed '2 i /usr/bin/addGroups.py' /usr/bin/startup > /usr/bin/startup2 && \
 
 # You can't use --net=host AND already be running sshd on the host server, since proftpd will try to bind port 22
 RUN sed -i '68,$ d' /etc/proftpd/proftpd.conf
+
+# Fix the time zone
+RUN unlink /etc/localtime && \
+    ln -s /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 
 # Expose port 80, 443 (webserver), 21 (FTP server), 8800 (Proxy), 9002 (supvisord web app)
 EXPOSE :21
