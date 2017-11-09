@@ -24,12 +24,18 @@ RUN echo "force-unsafe-io" > /etc/dpkg/dpkg.cfg.d/02apt-speedup && \
     apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 9735427B && \
     apt-get update -qq && apt-get upgrade -y && \
     apt-get install --no-install-recommends -y \
-    slurm-drmaa-dev nginx-extras=1.4.6-1ubuntu3.4ppa1 nginx-common=1.4.6-1ubuntu3.4ppa1 supervisor \
+    slurm-drmaa-dev nginx-extras=1.4.6-1ubuntu3.8ppa1 nginx-common=1.4.6-1ubuntu3.8ppa1 supervisor \
     slurm-llnl autofs && \
+    # install and remove supervisor, so get the service config file
+    apt-get -qq remove -y supervisor && \
     apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
     groupadd --gid 999 docker && \
     # this can be optimised I think, we should get the SLURM client only and update it
-    gpasswd -a $GALAXY_USER docker
+    gpasswd -a $GALAXY_USER docker && \
+    mkdir -p /etc/supervisor/conf.d/ /var/log/supervisor/ && \
+    pip install --upgrade pip && \
+    pip install ephemeris supervisor --upgrade && \
+    ln -s /usr/local/bin/supervisord /usr/bin/supervisord
 
 RUN rm -f /usr/bin/startup && \
     ansible-playbook /ansible/provision.yml \

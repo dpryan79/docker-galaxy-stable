@@ -9,7 +9,7 @@ MAINTAINER Björn A. Grüning, bjoern.gruening@gmail.com
 ARG GALAXY_RELEASE
 ARG GALAXY_REPO
 
-ENV GALAXY_RELEASE=${GALAXY_RELEASE:-release_17.09} \
+ENV GALAXY_RELEASE=${GALAXY_RELEASE:-dev} \
 GALAXY_REPO=${GALAXY_REPO:-https://github.com/galaxyproject/galaxy} \
 GALAXY_ROOT=/galaxy-central \
 GALAXY_CONFIG_DIR=/etc/galaxy \
@@ -72,14 +72,18 @@ RUN echo "force-unsafe-io" > /etc/dpkg/dpkg.cfg.d/02apt-speedup && \
     apt-add-repository -y ppa:galaxyproject/nginx && \
     apt-get update -qq && apt-get upgrade -y && \
     apt-get install --no-install-recommends -y postgresql-9.3 sudo python-virtualenv \
-    nginx-extras=1.4.6-1ubuntu3.4ppa1 nginx-common=1.4.6-1ubuntu3.4ppa1 supervisor docker-ce=17.09.0~ce-0~ubuntu slurm-llnl slurm-llnl-torque \
+    nginx-extras=1.4.6-1ubuntu3.8ppa1 nginx-common=1.4.6-1ubuntu3.8ppa1 docker-ce=17.09.0~ce-0~ubuntu slurm-llnl slurm-llnl-torque \
     slurm-drmaa-dev proftpd proftpd-mod-pgsql libyaml-dev nodejs-legacy npm ansible munge libmunge-dev \
     nano vim curl python-crypto python-pip python-psutil condor python-ldap autofs \
-    gridengine-common gridengine-drmaa1.0 rabbitmq-server libswitch-perl unattended-upgrades && \
-    pip install --upgrade pip && \
-    pip install ephemeris && \
+    gridengine-common gridengine-drmaa1.0 rabbitmq-server libswitch-perl unattended-upgrades supervisor && \
+    # install and remove supervisor, so get the service config file
+    apt-get -qq remove -y supervisor && \
     apt-get purge -y software-properties-common && \
-    apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && rm -rf ~/.cache/
+    apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && rm -rf ~/.cache/ && \
+    mkdir -p /etc/supervisor/conf.d/ /var/log/supervisor/ && \
+    pip install --upgrade pip && \
+    pip install ephemeris supervisor --upgrade && \
+    ln -s /usr/local/bin/supervisord /usr/bin/supervisord
 
 RUN groupadd -r $GALAXY_USER -g $GALAXY_GID && \
     useradd -u $GALAXY_UID -r -g $GALAXY_USER -d $GALAXY_HOME -c "Galaxy user" $GALAXY_USER && \
