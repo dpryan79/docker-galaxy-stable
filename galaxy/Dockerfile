@@ -14,7 +14,8 @@ GALAXY_REPO=${GALAXY_REPO:-https://github.com/galaxyproject/galaxy} \
 GALAXY_ROOT=/galaxy-central \
 GALAXY_CONFIG_DIR=/etc/galaxy \
 EXPORT_DIR=/export \
-DEBIAN_FRONTEND=noninteractive
+DEBIAN_FRONTEND=noninteractive \
+TERM=xterm
 
 ENV GALAXY_CONFIG_FILE=$GALAXY_CONFIG_DIR/galaxy.ini \
 GALAXY_CONFIG_JOB_CONFIG_FILE=$GALAXY_CONFIG_DIR/job_conf.xml \
@@ -22,10 +23,10 @@ GALAXY_CONFIG_JOB_METRICS_CONFIG_FILE=$GALAXY_CONFIG_DIR/job_metrics_conf.xml \
 GALAXY_CONFIG_TOOL_DATA_TABLE_CONFIG_PATH=/etc/galaxy/tool_data_table_conf.xml \
 GALAXY_CONFIG_TOOL_DEPENDENCY_DIR=$EXPORT_DIR/tool_deps \
 GALAXY_CONFIG_TOOL_PATH=$EXPORT_DIR/galaxy-central/tools \
-GALAXY_VIRTUAL_ENV=/galaxy_venv \
+GALAXY_VIRTUAL_ENV=$GALAXY_CONFIG_TOOL_DEPENDENCY_DIR/galaxy_venv \
 GALAXY_USER=galaxy \
 GALAXY_UID=1450 \
-GALAXY_GID=1450 \
+GALAXY_GID=532 \
 GALAXY_POSTGRES_UID=1550 \
 GALAXY_POSTGRES_GID=1550 \
 GALAXY_HOME=/home/galaxy \
@@ -44,7 +45,7 @@ PG_DATA_DIR_HOST=$EXPORT_DIR/postgresql/9.3/main/ \
 UWSGI_PROCESSES=2 \
 UWSGI_THREADS=4 \
 # Set HTTPS to use a self-signed certificate (or your own certificate in $EXPORT_DIR/{server.key,server.crt})
-USE_HTTPS=False \
+USE_HTTPS=Yes \
 # Set USE_HTTPS_LENSENCRYPT and GALAXY_CONFIG_GALAXY_INFRASTRUCTURE_URL to a domain that is reachable to get a letsencrypt certificate
 USE_HTTPS_LETSENCRYPT=False \
 GALAXY_CONFIG_GALAXY_INFRASTRUCTURE_URL=http://localhost \
@@ -64,17 +65,13 @@ RUN echo "force-unsafe-io" > /etc/dpkg/dpkg.cfg.d/02apt-speedup && \
     echo "Acquire::http {No-Cache=True;};" > /etc/apt/apt.conf.d/no-cache && \
     apt-get -qq update && apt-get install --no-install-recommends -y apt-transport-https software-properties-common wget && \
     apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D && \
-    sh -c "wget -qO - https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -" && \
-    sh -c "echo deb http://research.cs.wisc.edu/htcondor/ubuntu/stable/ trusty contrib > /etc/apt/sources.list.d/htcondor.list" && \
-    sh -c "wget -qO - http://research.cs.wisc.edu/htcondor/ubuntu/HTCondor-Release.gpg.key | sudo apt-key add -" && \
-    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" && \
     apt-add-repository -y ppa:ansible/ansible && \
     apt-add-repository -y ppa:galaxyproject/nginx && \
     apt-get update -qq && apt-get upgrade -y && \
     apt-get install --no-install-recommends -y postgresql-9.3 sudo python-virtualenv \
-    nginx-extras=1.4.6-1ubuntu3.8ppa1 nginx-common=1.4.6-1ubuntu3.8ppa1 docker-ce=17.09.0~ce-0~ubuntu slurm-llnl slurm-llnl-torque \
+    nginx-extras=1.4.6-1ubuntu3.8ppa1 nginx-common=1.4.6-1ubuntu3.8ppa1 \
     slurm-drmaa-dev proftpd proftpd-mod-pgsql libyaml-dev nodejs-legacy npm ansible munge libmunge-dev \
-    nano vim curl python-crypto python-pip python-psutil condor python-ldap autofs \
+    nano vim curl python-crypto python-pip python-psutil python-ldap autofs nfs-kernel-server nis psmisc\
     gridengine-common gridengine-drmaa1.0 rabbitmq-server libswitch-perl unattended-upgrades supervisor samtools && \
     # install and remove supervisor, so get the service config file
     apt-get -qq remove -y supervisor && \
@@ -85,12 +82,33 @@ RUN echo "force-unsafe-io" > /etc/dpkg/dpkg.cfg.d/02apt-speedup && \
     pip install ephemeris supervisor --upgrade && \
     ln -s /usr/local/bin/supervisord /usr/bin/supervisord
 
+RUN wget -q https://get.docker.com/builds/Linux/x86_64/docker-1.8.2.tgz && \
+    tar xf docker-1.8.2.tgz && \
+    mv usr/local/bin/docker /usr/bin/docker
+
 RUN groupadd -r $GALAXY_USER -g $GALAXY_GID && \
     useradd -u $GALAXY_UID -r -g $GALAXY_USER -d $GALAXY_HOME -c "Galaxy user" $GALAXY_USER && \
     mkdir $EXPORT_DIR $GALAXY_HOME $GALAXY_LOGS_DIR && chown -R $GALAXY_USER:$GALAXY_USER $GALAXY_HOME $EXPORT_DIR $GALAXY_LOGS_DIR && \
-    gpasswd -a $GALAXY_USER docker && \
-    adduser condor docker
+    groupadd docker && \
+    gpasswd -a $GALAXY_USER docker
 ADD ./bashrc $GALAXY_HOME/.bashrc
+
+RUN wget -q https://github.com/SchedMD/slurm/archive/slurm-15-08-13-1.tar.gz && \
+    tar xf slurm-15-08-13-1.tar.gz && \
+    cd slurm-slurm-15-08-13-1 && \
+    ./configure --prefix=/usr/local --sysconfdir=/etc/slurm-llnl --with-munge=/usr && \
+    make && \
+    make install && \
+    cd .. && \
+    wget -q http://apps.man.poznan.pl/trac/slurm-drmaa/downloads/9 && \
+    tar xf 9 && \
+    cd slurm-drmaa-1.0.7 && \
+    ./configure --with-slurm-inc=/usr/local/include --with-slurm-lib=/usr/local/lib --sysconfdir=/etc && \
+    ls -l && \
+    make && \
+    make install && \
+    ln -s /usr/local /usr/lib/slurm-drmaa && \
+    rm -rf /9 /docker-1.8.2.tgz /slurm*
 
 # Download latest stable release of Galaxy.
 RUN mkdir $GALAXY_ROOT && \
@@ -123,10 +141,10 @@ RUN ansible-playbook /ansible/postgresql_provision.yml && \
     --extra-vars galaxy_job_conf_path=$GALAXY_CONFIG_JOB_CONFIG_FILE \
     --extra-vars galaxy_job_metrics_conf_path=$GALAXY_CONFIG_JOB_METRICS_CONFIG_FILE \
     --extra-vars supervisor_manage_slurm="" \
-    --extra-vars galaxy_extras_config_condor=True \
-    --extra-vars galaxy_extras_config_condor_docker=True \
+    --extra-vars galaxy_extras_config_condor=False \
+    --extra-vars galaxy_extras_config_condor_docker=False \
     --extra-vars galaxy_extras_config_rabbitmq=True \
-    --extra-vars galaxy_extras_config_cvmfs=True \
+    --extra-vars galaxy_extras_config_cvmfs=False \
     --extra-vars proftpd_db_connection=galaxy@galaxy \
     --extra-vars proftpd_files_dir=$EXPORT_DIR/ftp \
     --extra-vars proftpd_use_sftp=True \
@@ -141,8 +159,8 @@ RUN ansible-playbook /ansible/postgresql_provision.yml && \
 
 RUN mkdir /shed_tools && chown $GALAXY_USER:$GALAXY_USER /shed_tools && \
     mkdir $EXPORT_DIR/ftp/ && chown $GALAXY_USER:$GALAXY_USER $EXPORT_DIR/ftp && \
-    mkdir /tool_deps/ && chown $GALAXY_USER:$GALAXY_USER /tool_deps && \
-    ln -s /tool_deps/ $EXPORT_DIR/tool_deps && chown $GALAXY_USER:$GALAXY_USER $EXPORT_DIR/tool_deps # Configure Galaxy to use the Tool Shed
+    mkdir $GALAXY_CONFIG_TOOL_DEPENDENCY_DIR && \
+    chown $GALAXY_USER:$GALAXY_USER $GALAXY_CONFIG_TOOL_DEPENDENCY_DIR # Configure Galaxy to use the Tool Shed
 
 # The following commands will be executed as the galaxy user
 USER $GALAXY_USER
@@ -155,7 +173,7 @@ WORKDIR $GALAXY_ROOT
 ENV GALAXY_CONFIG_DATABASE_CONNECTION=postgresql://galaxy:galaxy@localhost:5432/galaxy?client_encoding=utf8 \
 GALAXY_CONFIG_ADMIN_USERS=admin@galaxy.org \
 GALAXY_CONFIG_MASTER_API_KEY=HSNiugRFvgT574F43jZ7N9F3 \
-GALAXY_CONFIG_BRAND="Galaxy Docker Build" \
+GALAXY_CONFIG_BRAND="Galaxy@MPI-IE" \
 GALAXY_CONFIG_STATIC_ENABLED=False \
 GALAXY_CONFIG_JOB_WORKING_DIRECTORY=$EXPORT_DIR/galaxy-central/database/job_working_directory \
 GALAXY_CONFIG_FILE_PATH=$EXPORT_DIR/galaxy-central/database/files \
@@ -164,7 +182,7 @@ GALAXY_CONFIG_TEMPLATE_CACHE_PATH=$EXPORT_DIR/galaxy-central/database/compiled_t
 GALAXY_CONFIG_CITATION_CACHE_DATA_DIR=$EXPORT_DIR/galaxy-central/database/citations/data \
 GALAXY_CONFIG_CLUSTER_FILES_DIRECTORY=$EXPORT_DIR/galaxy-central/database/pbs \
 GALAXY_CONFIG_FTP_UPLOAD_DIR=$EXPORT_DIR/ftp \
-GALAXY_CONFIG_FTP_UPLOAD_SITE=galaxy.docker.org \
+GALAXY_CONFIG_FTP_UPLOAD_SITE=galaxy.ie-freiburg.mpg.de \
 GALAXY_CONFIG_USE_PBKDF2=False \
 GALAXY_CONFIG_NGINX_X_ACCEL_REDIRECT_BASE=/_x_accel_redirect \
 GALAXY_CONFIG_NGINX_X_ARCHIVE_FILES_BASE=/_x_accel_redirect \
@@ -223,19 +241,25 @@ ADD install_tools_wrapper.sh /usr/bin/install-tools
 ADD install_biojs_vis.sh /usr/bin/install-biojs
 RUN chmod +x /usr/bin/install-tools /usr/bin/install-biojs
 
-RUN echo "DISCARD_SESSION_KEYRING_ON_STARTUP=False" > /etc/condor/condor_config.local && \
-    echo "TRUST_UID_DOMAIN=true" >> /etc/condor/condor_config.local
-
 # This needs to happen here and not above, otherwise the Galaxy start
 # (without running the startup.sh script) will crash because integrated_tool_panel.xml could not be found.
 ENV GALAXY_CONFIG_INTEGRATED_TOOL_PANEL_CONFIG $EXPORT_DIR/galaxy-central/integrated_tool_panel.xml
 
-# Expose port 80, 443 (webserver), 21 (FTP server), 8800 (Proxy), 9002 (supvisord web app)
-EXPOSE :21
+ADD ./addGroups.py /usr/bin/addGroups.py
+RUN sed '2 i /usr/bin/addGroups.py' /usr/bin/startup > /usr/bin/startup2 && \
+    chmod a+x /usr/bin/startup2 && \
+    useradd slurm && \
+    mkdir /etc/slurm-llnl
+
+# Fix the time zone
+RUN unlink /etc/localtime && \
+    ln -s /usr/share/zoneinfo/Europe/Berlin /etc/localtime
+
+# Expose port 80, 443 (webserver), 22 (SFTP server), 8800 (Proxy)
+EXPOSE :22
 EXPOSE :80
 EXPOSE :443
 EXPOSE :8800
-EXPOSE :9002
 
 # Mark folders as imported from the host.
 VOLUME ["/export/", "/data/", "/var/lib/docker"]
@@ -244,4 +268,4 @@ ADD install_db.sh /usr/bin/install_db.sh
 RUN chmod +x /usr/bin/install_db.sh
 
 # Autostart script that is invoked during container start
-CMD ["/usr/bin/startup"]
+CMD ["/usr/bin/startup2"]
