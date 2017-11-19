@@ -28,3 +28,16 @@ if os.path.exists("/export/automount"):
     subprocess.check_call(["/usr/sbin/ypbind"])
     subprocess.check_call(["/usr/sbin/automount"])
     subprocess.check_call(["sleep", "15"])
+
+if not os.path.exists("/etc/galaxy/tool_data_table_conf.xml"):
+    if os.path.exists("/export/galaxy-central/config/tool_data_table_conf.xml"):
+        os.symlink("/export/galaxy-central/config/tool_data_table_conf.xml", "/etc/galaxy/tool_data_table_conf.xml")
+    else:
+        os.symlink("/export/galaxy-central/config/tool_data_table_conf.xml.sample", "/etc/galaxy/tool_data_table_conf.xml")
+
+subprocess.check_call(['sed', '-i', 's/ 22/ 8022/', '/etc/proftpd/proftpd.conf'])
+
+#subprocess.check_call(['sed', '-i', '262 i \ \ \ \ --extra-vars nginx_upload_store_path=$GALAXY_CONFIG_NGINX_UPLOAD_STORE \\\\', '/usr/bin/startup2'])
+#subprocess.check_call(['sed', '-i', '276 i \ \ \ \ \ \ \ \ --extra-vars nginx_upload_store_path=$GALAXY_CONFIG_NGINX_UPLOAD_STORE \\\\', '/usr/bin/startup2'])
+#subprocess.check_call(['sed', '-i', '284 i \ \ \ \ \ \ \ \ --extra-vars nginx_upload_store_path=$GALAXY_CONFIG_NGINX_UPLOAD_STORE \\\\', '/usr/bin/startup2'])
+subprocess.check_call(['sed', '-i', 's:/tmp/nginx_upload_store:/export/nginx_upload_store:', '/ansible/roles/galaxyprojectdotorg.galaxyextras/defaults/main.yml'])
