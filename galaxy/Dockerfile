@@ -93,9 +93,9 @@ RUN groupadd -r $GALAXY_USER -g $GALAXY_GID && \
     gpasswd -a $GALAXY_USER docker
 ADD ./bashrc $GALAXY_HOME/.bashrc
 
-RUN wget -q https://github.com/SchedMD/slurm/archive/slurm-15-08-13-1.tar.gz && \
-    tar xf slurm-15-08-13-1.tar.gz && \
-    cd slurm-slurm-15-08-13-1 && \
+RUN wget -q https://download.schedmd.com/slurm/slurm-17.02.9.tar.bz2 && \
+    tar xf slurm-17.02.9.tar.bz2 && \
+    cd slurm-17.02.9 && \
     ./configure --prefix=/usr/local --sysconfdir=/etc/slurm-llnl --with-munge=/usr && \
     make && \
     make install && \
