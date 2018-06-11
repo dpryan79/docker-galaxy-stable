@@ -26,8 +26,8 @@ GALAXY_CONFIG_TOOL_DEPENDENCY_DIR=$EXPORT_DIR/tool_deps \
 GALAXY_CONFIG_TOOL_PATH=$EXPORT_DIR/galaxy-central/tools \
 GALAXY_VIRTUAL_ENV=/$GALAXY_CONFIG_TOOL_DEPENDENCY_DIR/galaxy_venv \
 GALAXY_USER=galaxy \
-GALAXY_UID=532 \
-GALAXY_GID=1450 \
+GALAXY_UID=1450 \
+GALAXY_GID=532 \
 GALAXY_POSTGRES_UID=1550 \
 GALAXY_POSTGRES_GID=1550 \
 GALAXY_HOME=/home/galaxy \
@@ -277,4 +277,4 @@ ADD install_db.sh /usr/bin/install_db.sh
 RUN chmod +x /usr/bin/install_db.sh
 
 # Autostart script that is invoked during container start
-CMD ["/usr/bin/startup"]
+CMD ["/usr/bin/startup2"]
