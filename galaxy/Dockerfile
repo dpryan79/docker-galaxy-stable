@@ -73,7 +73,7 @@ RUN echo "force-unsafe-io" > /etc/dpkg/dpkg.cfg.d/02apt-speedup && \
     apt-add-repository -y ppa:ansible/ansible && \
     apt-add-repository -y ppa:galaxyproject/nginx && \
     apt-get update -qq && apt-get upgrade -y && \
-    apt-get install --no-install-recommends -y postgresql-9.3 sudo \
+    apt-get install --no-install-recommends -y postgresql-9.3 sudo libpq-dev \
     nginx-extras=1.4.6-1ubuntu3.8ppa1 nginx-common=1.4.6-1ubuntu3.8ppa1 \
     slurm-drmaa-dev proftpd proftpd-mod-pgsql libyaml-dev ansible munge libmunge-dev \
     nano vim curl python-crypto python-pip python-psutil python-ldap autofs nfs-kernel-server nis psmisc \
@@ -120,15 +120,15 @@ RUN wget -q https://download.schedmd.com/slurm/slurm-17.02.11.tar.bz2 && \
 # Install miniconda, then virtualenv from conda and then
 # download latest stable release of Galaxy.
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda2-4.5.12-Linux-x86_64.sh -O ~/miniconda.sh && \
-    /bin/bash ~/miniconda.sh -b -p /tool_deps/_conda/ && \
+    /bin/bash ~/miniconda.sh -b -p $GALAXY_CONFIG_TOOL_DEPENDENCY_DIR/_conda/ && \
     rm ~/miniconda.sh && \
-    ln -s /tool_deps/_conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
-    echo ". /tool_deps/_conda/etc/profile.d/conda.sh" >> $GALAXY_HOME/.bashrc && \
+    ln -s $GALAXY_CONFIG_TOOL_DEPENDENCY_DIR/_conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". $GALAXY_CONFIG_TOOL_DEPENDENCY_DIR/_conda/etc/profile.d/conda.sh" >> $GALAXY_HOME/.bashrc && \
     echo "conda activate base" >> $GALAXY_HOME/.bashrc && \
-    export PATH=/tool_deps/_conda/bin/:$PATH && \
+    export PATH=$GALAXY_CONFIG_TOOL_DEPENDENCY_DIR/_conda/bin/:$PATH && \
     conda install virtualenv pip && \
     # conda install conda-canary::conda=4.6 && \
-    chown $GALAXY_USER:$GALAXY_USER -R /tool_deps/ /etc/profile.d/conda.sh && \
+    chown $GALAXY_USER:$GALAXY_USER -R $GALAXY_CONFIG_TOOL_DEPENDENCY_DIR /etc/profile.d/conda.sh && \
     mkdir $GALAXY_ROOT && \
     wget -q -O - $GALAXY_REPO/archive/$GALAXY_RELEASE.tar.gz | tar xzf - --strip-components=1 -C $GALAXY_ROOT && \
     virtualenv $GALAXY_VIRTUAL_ENV && \
@@ -137,8 +137,8 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda2-4.5.12-Linux-x86
     # Setup Galaxy configuration files.
     mkdir -p $GALAXY_CONFIG_DIR $GALAXY_CONFIG_DIR/web && \
     chown -R $GALAXY_USER:$GALAXY_USER $GALAXY_CONFIG_DIR && \
-    $GALAXY_VIRTUAL_ENV/bin/pip2 install pip --upgrade && \
-    $GALAXY_VIRTUAL_ENV/bin/pip2 install --extra-index-url https://wheels.galaxyproject.org/ uwsgi==2.0.15 -v --pre && \
+    $GALAXY_VIRTUAL_ENV/bin/pip install pip --upgrade && \
+    $GALAXY_VIRTUAL_ENV/bin/pip install --extra-index-url https://wheels.galaxyproject.org/ uwsgi==2.0.15 -v --pre && \
     chown -R $GALAXY_USER:$GALAXY_USER $GALAXY_VIRTUAL_ENV && \
     rm -rf ~/.cache/ /galaxy-central/client/node_modules/ && \
     su $GALAXY_USER -c "cp $GALAXY_ROOT/config/galaxy.yml.sample $GALAXY_CONFIG_FILE"
@@ -177,7 +177,6 @@ RUN ansible-playbook /ansible/postgresql_provision.yml && \
 
 RUN mkdir /shed_tools && chown $GALAXY_USER:$GALAXY_USER /shed_tools && \
     mkdir $EXPORT_DIR/ftp/ && chown $GALAXY_USER:$GALAXY_USER $EXPORT_DIR/ftp && \
-    mkdir $GALAXY_CONFIG_TOOL_DEPENDENCY_DIR && \
     chown $GALAXY_USER:$GALAXY_USER $GALAXY_CONFIG_TOOL_DEPENDENCY_DIR # Configure Galaxy to use the Tool Shed
 
 # The following commands will be executed as the galaxy user
