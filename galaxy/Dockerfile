@@ -100,22 +100,23 @@ RUN groupadd -r $GALAXY_USER -g $GALAXY_GID && \
 
 ADD ./bashrc $GALAXY_HOME/.bashrc
 
-RUN wget -q https://download.schedmd.com/slurm/slurm-17.02.11.tar.bz2 && \
-    tar xf slurm-17.02.11.tar.bz2 && \
-    cd slurm-17.02.11 && \
+RUN wget -q https://download.schedmd.com/slurm/slurm-19.05.1-2.tar.bz2 && \
+    tar xf slurm-19.05.1-2.tar.bz2 && \
+    cd slurm-19.05.1-2 && \
     ./configure --prefix=/usr/local --sysconfdir=/etc/slurm-llnl --with-munge=/usr && \
     make && \
     make install && \
     cd .. && \
-    wget -q http://apps.man.poznan.pl/trac/slurm-drmaa/downloads/9 && \
-    tar xf 9 && \
-    cd slurm-drmaa-1.0.7 && \
+    ls /usr/local/lib && \
+    wget -q https://github.com/natefoo/slurm-drmaa/releases/download/1.1.0/slurm-drmaa-1.1.0.tar.gz && \
+    tar xf slurm-drmaa-1.1.0.tar.gz && \
+    cd slurm-drmaa-1.1.0 && \
+    sed -i.bak "s/-lslurmdb //g" configure && \
     ./configure --with-slurm-inc=/usr/local/include --with-slurm-lib=/usr/local/lib --sysconfdir=/etc && \
-    ls -l && \
     make && \
     make install && \
-    ln -s /usr/local /usr/lib/slurm-drmaa && \
-    rm -rf /9 /docker-1.8.2.tgz /slurm*
+    cd / && rm -rf /docker-1.8.2.tgz /slurm*
+#   ln -s /usr/local /usr/lib/slurm-drmaa && \
 
 # Install miniconda, then virtualenv from conda and then
 # download latest stable release of Galaxy.
