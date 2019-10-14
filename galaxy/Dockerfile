@@ -100,6 +100,7 @@ RUN groupadd -r postgres -g $GALAXY_POSTGRES_GID \
     && apt-get install gridengine-common gridengine-drmaa1.0 --no-install-recommends -y \
     && apt-get install rabbitmq-server --no-install-recommends -y \
     && apt-get install --no-install-recommends -y libswitch-perl supervisor \
+    && apt-get install autotools-dev automake libtool bison gperf ragel --no-install-recommends -y \
     && apt-get purge -y software-properties-common gpg-agent apt-transport-https python3-minimal  \
     && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && rm -rf ~/.cache/ \
     && mkdir -p /etc/supervisor/conf.d/ /var/log/supervisor/ \
@@ -114,7 +115,7 @@ RUN groupadd -r postgres -g $GALAXY_POSTGRES_GID \
 
 ADD ./bashrc $GALAXY_HOME/.bashrc
 
-# Install slurm (apt-get install autotools-dev automake libtool bison gperf)
+# Install slurm
 RUN wget -q https://download.schedmd.com/slurm/slurm-19.05.3-2.tar.bz2 && \
     tar xf slurm-19.05.3-2.tar.bz2 && \
     cd slurm-19.05.3-2 && \
@@ -128,6 +129,7 @@ RUN wget -q https://download.schedmd.com/slurm/slurm-19.05.3-2.tar.bz2 && \
     sed -i.bak "s/-lslurmdb//g" m4/ax_slurm.m4 && \
     bash autogen.sh && \
     ./configure --with-slurm-inc=/usr/local/include --with-slurm-lib=/usr/local/lib --sysconfdir=/etc && \ 
+    cp -fr m4 drmaa_utils/drmaa_utils/ && \
     make && \
     make install && \
     cd .. && \
