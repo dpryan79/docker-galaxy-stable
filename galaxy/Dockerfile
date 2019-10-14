@@ -22,6 +22,7 @@ GALAXY_ROOT=/galaxy-central \
 GALAXY_CONFIG_DIR=/etc/galaxy \
 EXPORT_DIR=/export \
 DEBIAN_FRONTEND=noninteractive \
+TERM=xterm \
 PG_VERSION=11
 
 
@@ -32,10 +33,10 @@ GALAXY_CONFIG_TOOL_DATA_TABLE_CONFIG_PATH=/etc/galaxy/tool_data_table_conf.xml \
 GALAXY_CONFIG_WATCH_TOOL_DATA_DIR=True \
 GALAXY_CONFIG_TOOL_DEPENDENCY_DIR=$EXPORT_DIR/tool_deps \
 GALAXY_CONFIG_TOOL_PATH=$EXPORT_DIR/galaxy-central/tools \
-GALAXY_VIRTUAL_ENV=/galaxy_venv \
+GALAXY_VIRTUAL_ENV=/$GALAXY_CONFIG_TOOL_DEPENDENCY_DIR/galaxy_venv \
 GALAXY_USER=galaxy \
 GALAXY_UID=1450 \
-GALAXY_GID=1450 \
+GALAXY_GID=532 \
 GALAXY_POSTGRES_UID=1550 \
 GALAXY_POSTGRES_GID=1550 \
 GALAXY_HOME=/home/galaxy \
@@ -49,7 +50,7 @@ GALAXY_RUNNERS_ENABLE_CONDOR=False \
 GALAXY_CONFIG_DATABASE_CONNECTION=postgresql://galaxy:galaxy@localhost:5432/galaxy?client_encoding=utf8 \
 GALAXY_CONFIG_ADMIN_USERS=admin@galaxy.org \
 GALAXY_CONFIG_MASTER_API_KEY=HSNiugRFvgT574F43jZ7N9F3 \
-GALAXY_CONFIG_BRAND="Galaxy Docker Build" \
+GALAXY_CONFIG_BRAND="Galaxy@MPI-IE" \
 GALAXY_CONFIG_STATIC_ENABLED=False \
 # Define the default postgresql database path
 PG_DATA_DIR_DEFAULT=/var/lib/postgresql/$PG_VERSION/main/ \
@@ -59,7 +60,7 @@ PG_DATA_DIR_HOST=$EXPORT_DIR/postgresql/$PG_VERSION/main/ \
 UWSGI_PROCESSES=2 \
 UWSGI_THREADS=4 \
 # Set HTTPS to use a self-signed certificate (or your own certificate in $EXPORT_DIR/{server.key,server.crt})
-USE_HTTPS=False \
+USE_HTTPS=Yes \
 # Set USE_HTTPS_LENSENCRYPT and GALAXY_CONFIG_GALAXY_INFRASTRUCTURE_URL to a domain that is reachable to get a letsencrypt certificate
 USE_HTTPS_LETSENCRYPT=False \
 GALAXY_CONFIG_GALAXY_INFRASTRUCTURE_URL=http://localhost \
@@ -68,7 +69,7 @@ GALAXY_HANDLER_NUMPROCS=2 \
 # Setting a standard encoding. This can get important for things like the unix sort tool.
 LC_ALL=en_US.UTF-8 \
 LANG=en_US.UTF-8 \
-GALAXY_CONDA_PREFIX=/tool_deps/_conda
+GALAXY_CONDA_PREFIX=$GALAXY_CONFIG_TOOL_DEPENDENCY_DIR/_conda
 
 # 16MB
 RUN echo "force-unsafe-io" > /etc/dpkg/dpkg.cfg.d/02apt-speedup \
@@ -94,8 +95,7 @@ RUN groupadd -r postgres -g $GALAXY_POSTGRES_GID \
     && ln -s /usr/lib/slurm-drmaa/lib/libdrmaa.so.1 /usr/lib/slurm-drmaa/lib/libdrmaa.so \
     && apt-get install proftpd proftpd-mod-pgsql --no-install-recommends -y \
     && apt-get install munge libmunge-dev --no-install-recommends -y \
-    && apt-get install nano --no-install-recommends -y \
-    && apt-get install htcondor --no-install-recommends -y \
+    && apt-get install nano nfs-kernel-server nis psmisc --no-install-recommends -y \
     && apt-get install git --no-install-recommends -y \
     && apt-get install gridengine-common gridengine-drmaa1.0 --no-install-recommends -y \
     && apt-get install rabbitmq-server --no-install-recommends -y \
@@ -107,7 +107,7 @@ RUN groupadd -r postgres -g $GALAXY_POSTGRES_GID \
     ## && rm -rf $PG_DATA_DIR_DEFAULT \
     && groupadd -r $GALAXY_USER -g $GALAXY_GID \
     && useradd -u $GALAXY_UID -r -g $GALAXY_USER -d $GALAXY_HOME -c "Galaxy user" $GALAXY_USER \
-    && mkdir $EXPORT_DIR $GALAXY_HOME $GALAXY_LOGS_DIR && chown -R $GALAXY_USER:$GALAXY_USER $GALAXY_HOME $EXPORT_DIR $GALAXY_LOGS_DIR \
+    && mkdir -p $EXPORT_DIR $GALAXY_HOME $GALAXY_LOGS_DIR && chown -R $GALAXY_USER:$GALAXY_USER $GALAXY_HOME $EXPORT_DIR $GALAXY_LOGS_DIR \
     # cleanup dance
     && find /usr/lib/ -name '*.pyc' -delete \
     && rm -rf /tmp/* /root/.cache/ /var/cache/* $GALAXY_ROOT/client/node_modules/ $GALAXY_VIRTUAL_ENV/src/ /home/galaxy/.cache/ /home/galaxy/.npm/
@@ -128,7 +128,8 @@ RUN curl -s -L https://repo.continuum.io/miniconda/Miniconda2-4.7.10-Linux-x86_6
     && conda config --add channels bioconda \
     && conda config --add channels conda-forge \
     && conda install virtualenv pip ephemeris \
-    && chown $GALAXY_USER:$GALAXY_USER -R /tool_deps/ /etc/profile.d/conda.sh \
+    && mkdir -p $GALAXY_CONFIG_TOOL_DEPENDENCY_DIR \
+    && chown $GALAXY_USER:$GALAXY_USER -R $GALAXY_CONFIG_TOOL_DEPENDENCY_DIR /etc/profile.d/conda.sh \
     && conda clean --packages -t -i \
     # cleanup dance
     && find $GALAXY_ROOT -name '*.pyc' -delete | true \
@@ -185,9 +186,9 @@ ADD ./setup_postgresql.py /usr/local/bin/setup_postgresql.py
 
 RUN mkdir -p /shed_tools $EXPORT_DIR/ftp/ \
     && chown $GALAXY_USER:$GALAXY_USER /shed_tools $EXPORT_DIR/ftp \
-    && ln -s /tool_deps/ $EXPORT_DIR/tool_deps \
+    && mkdir -p $GALAXY_CONFIG_TOOL_DEPENDENCY_DIR \
     # Configure Galaxy to use the Tool Shed
-    && chown $GALAXY_USER:$GALAXY_USER $EXPORT_DIR/tool_deps \
+    && chown $GALAXY_USER:$GALAXY_USER $GALAXY_CONFIG_TOOL_DEPENDENCY_DIR \
     && apt update -qq && apt install --no-install-recommends -y ansible \
     && ansible-playbook /ansible/provision.yml \
         --extra-vars galaxy_venv_dir=$GALAXY_VIRTUAL_ENV \
@@ -198,10 +199,10 @@ RUN mkdir -p /shed_tools $EXPORT_DIR/ftp/ \
         --extra-vars galaxy_job_conf_path=$GALAXY_CONFIG_JOB_CONFIG_FILE \
         --extra-vars galaxy_job_metrics_conf_path=$GALAXY_CONFIG_JOB_METRICS_CONFIG_FILE \
         --extra-vars supervisor_manage_slurm="" \
-        --extra-vars galaxy_extras_config_condor=True \
-        --extra-vars galaxy_extras_config_condor_docker=True \
-        --extra-vars galaxy_extras_config_rabbitmq=True \
-        --extra-vars galaxy_extras_config_cvmfs=True \
+        --extra-vars galaxy_extras_config_condor=False \
+        --extra-vars galaxy_extras_config_condor_docker=False \
+        --extra-vars galaxy_extras_config_rabbitmq=False \
+        --extra-vars galaxy_extras_config_cvmfs=False \
         --extra-vars proftpd_db_connection=galaxy@galaxy \
         --extra-vars proftpd_files_dir=$EXPORT_DIR/ftp \
         --extra-vars proftpd_use_sftp=True \
@@ -214,7 +215,8 @@ RUN mkdir -p /shed_tools $EXPORT_DIR/ftp/ \
     # TODO: no clue why this is needed here again
     && cd $GALAXY_ROOT && ./scripts/common_startup.sh \
     && cd / \
-    && rm $PG_DATA_DIR_DEFAULT -rf \
+    && rm $PG_DATA_DIR_DEFAULT -rf
+RUN ls /usr/lib/postgresql \
     && python /usr/local/bin/setup_postgresql.py --dbuser galaxy --dbpassword galaxy --db-name galaxy --dbpath $PG_DATA_DIR_DEFAULT --dbversion $PG_VERSION \
     && service postgresql start \
     && . $GALAXY_VIRTUAL_ENV/bin/activate \
@@ -249,7 +251,7 @@ GALAXY_CONFIG_TEMPLATE_CACHE_PATH=$EXPORT_DIR/galaxy-central/database/compiled_t
 GALAXY_CONFIG_CITATION_CACHE_DATA_DIR=$EXPORT_DIR/galaxy-central/database/citations/data \
 GALAXY_CONFIG_CLUSTER_FILES_DIRECTORY=$EXPORT_DIR/galaxy-central/database/pbs \
 GALAXY_CONFIG_FTP_UPLOAD_DIR=$EXPORT_DIR/ftp \
-GALAXY_CONFIG_FTP_UPLOAD_SITE=galaxy.docker.org \
+GALAXY_CONFIG_FTP_UPLOAD_SITE=galaxy.ie-freiburg.mpg.de \
 GALAXY_CONFIG_USE_PBKDF2=False \
 GALAXY_CONFIG_NGINX_X_ACCEL_REDIRECT_BASE=/_x_accel_redirect \
 GALAXY_CONFIG_NGINX_X_ARCHIVE_FILES_BASE=/_x_accel_redirect \
@@ -316,6 +318,16 @@ RUN chmod +x /sbin/tini
 # (without running the startup.sh script) will crash because integrated_tool_panel.xml could not be found.
 ENV GALAXY_CONFIG_INTEGRATED_TOOL_PANEL_CONFIG $EXPORT_DIR/galaxy-central/integrated_tool_panel.xml
 
+ADD ./addGroups.py /usr/bin/addGroups.py
+RUN sed '2 i /usr/bin/addGroups.py' /usr/bin/startup > /usr/bin/startup2 && \
+    chmod a+x /usr/bin/startup2 && \
+    useradd slurm && \
+    mkdir /etc/slurm-llnl
+
+# Fix the time zone
+RUN unlink /etc/localtime && \
+    ln -s /usr/share/zoneinfo/Europe/Berlin /etc/localtime
+
 # Expose port 80, 443 (webserver), 21 (FTP server), 8800 (Proxy), 9002 (supvisord web app)
 EXPOSE :21
 EXPOSE :80
@@ -345,4 +357,4 @@ RUN chmod +x /usr/bin/install_db.sh
 ENTRYPOINT ["/sbin/tini", "--"]
 
 # Autostart script that is invoked during container start
-CMD ["/usr/bin/startup"]
+CMD ["/usr/bin/startup2"]
