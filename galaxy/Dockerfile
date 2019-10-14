@@ -85,17 +85,17 @@ RUN groupadd -r postgres -g $GALAXY_POSTGRES_GID \
     && apt-get -qq update && apt-get install --no-install-recommends -y software-properties-common gpg-agent curl sudo \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add - \
     && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
-    && sudo add-apt-repository ppa:natefoo/slurm-drmaa \
+    #&& sudo add-apt-repository ppa:natefoo/slurm-drmaa \
     && apt-get update -qq \
     ## && apt-get purge -y software-properties-common gpg-agent \
     ## && apt-get install postgresql-10 --no-install-recommends -y \
     && apt-get install nginx-extras nginx-common --no-install-recommends -y \
     && apt-get install docker-ce-cli --no-install-recommends -y \
-    && apt-get install slurm-client slurmd slurmctld slurm-drmaa1 --no-install-recommends -y \
-    && ln -s /usr/lib/slurm-drmaa/lib/libdrmaa.so.1 /usr/lib/slurm-drmaa/lib/libdrmaa.so \
+    #&& apt-get install slurm-client slurmd slurmctld slurm-drmaa1 --no-install-recommends -y \
+    #&& ln -s /usr/lib/slurm-drmaa/lib/libdrmaa.so.1 /usr/lib/slurm-drmaa/lib/libdrmaa.so \
     && apt-get install proftpd proftpd-mod-pgsql --no-install-recommends -y \
     && apt-get install munge libmunge-dev --no-install-recommends -y \
-    && apt-get install nano nfs-kernel-server nis psmisc --no-install-recommends -y \
+    && apt-get install nano nfs-kernel-server nis psmisc vim rsyslog less autofs --no-install-recommends -y \
     && apt-get install git --no-install-recommends -y \
     && apt-get install gridengine-common gridengine-drmaa1.0 --no-install-recommends -y \
     && apt-get install rabbitmq-server --no-install-recommends -y \
@@ -113,6 +113,25 @@ RUN groupadd -r postgres -g $GALAXY_POSTGRES_GID \
     && rm -rf /tmp/* /root/.cache/ /var/cache/* $GALAXY_ROOT/client/node_modules/ $GALAXY_VIRTUAL_ENV/src/ /home/galaxy/.cache/ /home/galaxy/.npm/
 
 ADD ./bashrc $GALAXY_HOME/.bashrc
+
+# Install slurm (apt-get install autotools-dev automake libtool bison gperf)
+RUN wget -q https://download.schedmd.com/slurm/slurm-19.05.3-2.tar.bz2 && \
+    tar xf slurm-19.05.3-2.tar.bz2 && \
+    cd slurm-19.05.3-2 && \
+    ./configure --prefix=/usr/local --sysconfdir=/etc/slurm-llnl --with-munge=/usr && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf slurm-19.05.3-2.tar.bz2 slurm-19.05.3-2 && \
+    git clone --recurse-submodules https://github.com/natefoo/slurm-drmaa && \
+    cd slurm-drmaa && \
+    sed -i.bak "s/-lslurmdb//g" m4/ax_slurm.m4 && \
+    bash autogen.sh && \
+    ./configure --with-slurm-inc=/usr/local/include --with-slurm-lib=/usr/local/lib --sysconfdir=/etc && \ 
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf slurm-drmaa
 
 # Install miniconda, then virtualenv from conda and then
 # download latest stable release of Galaxy.
@@ -216,7 +235,7 @@ RUN mkdir -p /shed_tools $EXPORT_DIR/ftp/ \
     && cd $GALAXY_ROOT && ./scripts/common_startup.sh \
     && cd / \
     && rm $PG_DATA_DIR_DEFAULT -rf
-RUN ls /usr/lib/postgresql \
+RUN apt list --installed \
     && python /usr/local/bin/setup_postgresql.py --dbuser galaxy --dbpassword galaxy --db-name galaxy --dbpath $PG_DATA_DIR_DEFAULT --dbversion $PG_VERSION \
     && service postgresql start \
     && . $GALAXY_VIRTUAL_ENV/bin/activate \
@@ -231,10 +250,6 @@ RUN ls /usr/lib/postgresql \
     && find $GALAXY_CONDA_PREFIX/ -name '*.pyc' -delete | true \
     && find $GALAXY_VIRTUAL_ENV -name '*.pyc' -delete | true \
     && rm -rf /tmp/* /root/.cache/ /var/cache/* $GALAXY_ROOT/client/node_modules/ $GALAXY_VIRTUAL_ENV/src/ /home/galaxy/.cache/ /home/galaxy/.npm
-
-RUN touch /var/log/condor/StartLog /var/log/condor/StarterLog /var/log/condor/CollectorLog /var/log/condor/NegotiatorLog && \
-    mkdir -p /var/run/condor/ /var/lock/condor/ && \
-    chown -R condor: /var/log/condor/StartLog /var/log/condor/StarterLog /var/log/condor/CollectorLog /var/log/condor/NegotiatorLog /var/run/condor/ /var/lock/condor/
 
 # The following commands will be executed as the galaxy user
 USER $GALAXY_USER
@@ -307,9 +322,6 @@ RUN chmod +x /usr/bin/install-tools /usr/bin/install-biojs && \
     cd /usr/bin/ && curl https://git.embl.de/grp-gbcs/galaxy-dir-sync/raw/master/src/galaxy-dir-sync.py > galaxy-dir-sync.py && \
     chmod +x galaxy-dir-sync.py
 
-RUN echo "DISCARD_SESSION_KEYRING_ON_STARTUP=False" > /etc/condor/condor_config.local && \
-    echo "TRUST_UID_DOMAIN=true" >> /etc/condor/condor_config.local
-
 # use https://github.com/krallin/tini/ as tiny but valid init and PID 1
 ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini /sbin/tini
 RUN chmod +x /sbin/tini
@@ -321,8 +333,7 @@ ENV GALAXY_CONFIG_INTEGRATED_TOOL_PANEL_CONFIG $EXPORT_DIR/galaxy-central/integr
 ADD ./addGroups.py /usr/bin/addGroups.py
 RUN sed '2 i /usr/bin/addGroups.py' /usr/bin/startup > /usr/bin/startup2 && \
     chmod a+x /usr/bin/startup2 && \
-    useradd slurm && \
-    mkdir /etc/slurm-llnl
+    mkdir -p /etc/slurm-llnl
 
 # Fix the time zone
 RUN unlink /etc/localtime && \
