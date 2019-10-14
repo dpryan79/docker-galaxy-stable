@@ -236,8 +236,7 @@ RUN mkdir -p /shed_tools $EXPORT_DIR/ftp/ \
     # TODO: no clue why this is needed here again
     && cd $GALAXY_ROOT && ./scripts/common_startup.sh \
     && cd / \
-    && rm $PG_DATA_DIR_DEFAULT -rf
-RUN apt list --installed \
+    && rm $PG_DATA_DIR_DEFAULT -rf \
     && python /usr/local/bin/setup_postgresql.py --dbuser galaxy --dbpassword galaxy --db-name galaxy --dbpath $PG_DATA_DIR_DEFAULT --dbversion $PG_VERSION \
     && service postgresql start \
     && . $GALAXY_VIRTUAL_ENV/bin/activate \
