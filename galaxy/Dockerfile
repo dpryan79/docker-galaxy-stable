@@ -332,13 +332,14 @@ RUN chmod +x /sbin/tini
 ENV GALAXY_CONFIG_INTEGRATED_TOOL_PANEL_CONFIG $EXPORT_DIR/galaxy-central/integrated_tool_panel.xml
 
 ADD ./addGroups.py /usr/bin/addGroups.py
-RUN sed '2 i /usr/bin/addGroups.py' /usr/bin/startup > /usr/bin/startup2 && \
+RUN sed '2 i /usr/bin/addGroups.py > /tmp/addGroups.log' /usr/bin/startup > /usr/bin/startup2 && \
     chmod a+x /usr/bin/startup2 && \
     mkdir -p /etc/slurm-llnl
 
-# Fix the time zone
+# local fixes
 RUN unlink /etc/localtime && \
-    ln -s /usr/share/zoneinfo/Europe/Berlin /etc/localtime
+    ln -s /usr/share/zoneinfo/Europe/Berlin /etc/localtime && \
+    chsh -s /bin/bash galaxy
 
 # Expose port 80, 443 (webserver), 21 (FTP server), 8800 (Proxy), 9002 (supvisord web app)
 EXPOSE :21
