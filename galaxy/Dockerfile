@@ -365,6 +365,9 @@ ENV SUPERVISOR_POSTGRES_AUTOSTART=True \
     GALAXY_EXTRAS_CONFIG_POSTGRES=True \
     STARTUP_EXPORT_USER_FILES=True
 
+# Try to prevent conda deletion
+RUN sed -i.bak "117,134d" /usr/local/bin/export_user_files.py
+
 RUN chmod +x /usr/bin/install_db.sh
 
 ENTRYPOINT ["/sbin/tini", "--"]
